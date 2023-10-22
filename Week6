@@ -1,0 +1,34 @@
+% It is a crime for an American to sell weapons to hostile nations.
+criminal(X) :- american(X), weapon(Y), sells(X, Y, Z), hostile(Z).
+
+% Nono, an enemy of America, has some missiles.
+missile(m_one).
+owns(nono, m_one).
+
+% All of its missiles were sold to it by Colonel West.
+sells(west, X, nono) :- missile(X), owns(nono, X).
+
+% Missiles are weapons.
+weapon(X) :- missile(X).
+
+% An enemy of America counts as "hostile".
+enemy(nono, america).
+hostile(X) :- enemy(X, america).
+
+% West is American.
+american(west).
+
+% Some other facts.
+american(bob).
+
+?- consult('knowbase.pl').
+true.
+
+?- criminal(bob).
+
+?- criminal(west).
+true
+
+?- trace, criminal(west).
+   Call: (11) criminal(west) ?lt('criminals.pl').
+true.
