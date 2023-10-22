@@ -1,3 +1,15 @@
+right_triangle(A, B, C) :-
+  sum(A, B, C),
+  C = 90.
+
+sum(A, B, C) :-
+  A + B + C = 180.
+
+triangle(30, 60, 90).
+
+?- right_triangle(30, 60, 90).
+true.
+________________________________________________________________________________________________
 % It is a crime for an American to sell weapons to hostile nations.
 criminal(X) :- american(X), weapon(Y), sells(X, Y, Z), hostile(Z).
 
