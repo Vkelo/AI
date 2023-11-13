@@ -1,224 +1,283 @@
-#1: from collections import deque
- 
- def find_path(maze):
-    def is_valid(x, y):
-        return 0 <= x < len(maze) and 0 <= y < len(maze[0]) and maze[x][y] in ('0', 'G')
- 
-    def get_neighbors(x, y):
-        return [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]
- 
-    start_x, start_y = None, None
- 
-    # Find the starting point
-    for i in range(len(maze)):
-        for j in range(len(maze[0])):
-            if maze[i][j] == 'S':
-                start_x, start_y = i, j
-                break
- 
-    if start_x is None or start_y is None:
-        return None
- 
-    # Initialize the BFS queue with the starting point
-    queue = deque([(start_x, start_y, [])])
- 
-    while queue:
-        x, y, path = queue.popleft()
- 
-        if maze[x][y] == 'G':
-            return path
- 
-        maze[x][y] = '1'  # Mark visited cells
- 
-        for neighbor_x, neighbor_y in get_neighbors(x, y):
-            if is_valid(neighbor_x, neighbor_y):
-                new_path = path + [(neighbor_x, neighbor_y)]
-                queue.append((neighbor_x, neighbor_y, new_path))
- 
-    return None  # No path found
- 
- maze = [
-    ['S', '1', '1', '1', '1'],
-    ['0', '0', '1', '1', '1'],
-    ['1', '1', '1', '0', '0'],
-    ['1', '0', '0', '0', '1'],
-    ['1', '1', '1', '1', 'G']
- ]
- 
- path = find_path(maze)
- 
- if path:
-    print("Path found:")
-    for x, y in path:
-        print(f"({x}, {y})")
- else:
-    print("No path found") 
- #2:  import random
- 
- class City:
-    def __init__(self, name, x, y):
-        self.name = name
-        self.x = x
-        self.y = y
- 
-    def distance_to(self, other_city):
-        return ((self.x - other_city.x)**2 + (self.y - other_city.y)**2)**0.5
- 
- class Chromosome:
-    def __init__(self, cities):
-        self.cities = cities
-        self.fitness = None
- 
-    def calculate_fitness(self):
-        total_distance = 0
-        for i in range(len(self.cities) - 1):
-            total_distance += self.cities[i].distance_to(self.cities[i + 1])
- 
-        # The fitness is the inverse of the total distance, so that better chromosomes have a higher fitness.
-        self.fitness = 1.0 / total_distance
- 
-    def crossover(self, other_chromosome):
-        # Select a random crossover point.
-        crossover_point = random.randint(1, len(self.cities) - 2)
- 
-        # Create two new chromosomes by swapping the genes after the crossover point.
-        child_1 = Chromosome(self.cities[:crossover_point] + other_chromosome.cities[crossover_point:])
-        child_2 = Chromosome(other_chromosome.cities[:crossover_point] + self.cities[crossover_point:])
- 
-        return child_1, child_2
- 
-    def mutate(self):
-        # Select two random genes to swap.
-        gene_1 = random.randint(0, len(self.cities) - 1)
-        gene_2 = random.randint(0, len(self.cities) - 1)
- 
-        # Swap the genes.
-        self.cities[gene_1], self.cities[gene_2] = self.cities[gene_2], self.cities[gene_1]
- 
- class Population:
-    def __init__(self, chromosomes):
-        self.chromosomes = chromosomes
- 
-    def select_parents(self):
-        # Select two parents using the roulette wheel selection method.
-        parents = []
-        for i in range(2):
-            total_fitness = 0.0
-            for chromosome in self.chromosomes:
-                total_fitness += chromosome.fitness
- 
-            # Generate a random number between 0 and the total fitness.
-            random_number = random.random() * total_fitness
- 
-            # Find the chromosome whose fitness is greater than or equal to the random number.
-            current_fitness = 0.0
-            for chromosome in self.chromosomes:
-                current_fitness += chromosome.fitness
-                if current_fitness >= random_number:
-                    parents.append(chromosome)
-                    break
- 
-        return parents
- 
-    def crossover(self):
-        # Create a new population by crossing over the parents.
-        new_population = []
-        for i in range(len(self.chromosomes)):
-            parents = self.select_parents()
-            child_1, child_2 = parents[0].crossover(parents[1])
-            new_population.append(child_1)
-            new_population.append(child_2)
- 
-        return new_population
- 
-    def mutate(self, mutation_rate):
-        # Mutate each chromosome in the population with a probability equal to the mutation rate.
-        for chromosome in self.chromosomes:
-            if random.random() < mutation_rate:
-                chromosome.mutate()
- 
-    def get_best_chromosome(self):
-        # Return the chromosome with the highest fitness.
-        best_chromosome = None
-        for chromosome in self.chromosomes:
-            if best_chromosome is None or chromosome.fitness > best_chromosome.fitness:
-                best_chromosome = chromosome
- 
-        return best_chromosome
- 
- 
- def main():
-    # Create a list of cities.
-    cities = [
-        City("Start", 0, 0),
-        City("A", 10, 10),
-        City("B", 11, 11),
-        City("C", 12, 12),
-    ]
- 
-    # Create a population of chromosomes.
-    population = Population([Chromosome(random.sample(cities, len(cities))) for i in range(100)])         # Evolve the population until the best chromosome has a fitness of 1.0, or until a maximum number of generations is reached.
-    max_generations = 1000
-    generation_count = 0
-    while population.get_best_chromosome().fitness < 1.0 and generation_count < max_generations:
-        generation_count += 1
- 
-        # Select the best chromosomes to be the parents of the next generation.
-        parents = population.select_parents()
- 
-        # Create a new population by crossing over the parents and mutating the children.
-        new_population = population.crossover()
-        new_population.mutate(0.1)
- 
-        population = new_population
- 
-    # Return the best chromosome.
-    best_chromosome = population.get_best_chromosome()
- 
-    # Print the shortest path.
-    print("Shortest path:")
-    for city in best_chromosome.cities:
-        print(city.name)
-﻿
- 
- 
- #3:  count_terminal = 0
- def alphabeta(state, depth, alpha, beta, isMaxPlayer):
-    global count_terminal
-    if (depth == 0) or terminal_node(state)["gameover"]: 
-       count_terminal += 1
-       return  terminal_node(state)["result"]
- 
-    if isMaxPlayer: # player maximizes his score
-        v_max = -math.inf
-        children = expand_state(state)
-        for pos in children:
-            child = copy.deepcopy(state)
-            child[pos[0]][pos[1]] = 1
-            v = alphabeta(child, depth - 1, alpha, beta, not isMaxPlayer)
-            v_max = max(v_max, v)
-            alpha = max(alpha, v)
-            if beta <= alpha:
-                break
-        return v_max
-    else: # player minimizes his score
-        v_min = math.inf
-        children = expand_state(state)
-        for pos in children:
-            child = copy.deepcopy(state)
-            child[pos[0]][pos[1]] = -1
-            v = alphabeta(child, depth - 1, alpha, beta, not isMaxPlayer)
-            v_min = min(v_min, v)
-            beta = min(beta, v)
-            if beta <= alpha:
-                break
-        return v_min
- count_terminal = 0
- state = [[0, 0, 0],[0,0,0],[0,0,-1]]
- depth = 8
- alpha = -math.inf
- beta = math.inf
- isMaxPlayer = True
- v = alphabeta(state, depth, alpha, beta, isMaxPlayer)
- print(v)
- print(count_terminal)
+maze = {
+    (0,0): [(0,1)],
+    (0,1): [(0,0), (0,2)],
+    (0,2): [(0,1), (0,3)],
+    (0,3): [(0,2), (0,4), (1,3)],
+    (0,4): [(0,3)],
+    (1,0): [(1,1), (2,0)],
+    (1,1): [(1,0), (1,2)],
+    (1,2): [(1,1), (1,3)],
+    (1,3): [(0,3), (1,2), (1,4), 2,3],
+    (1,4): [(1,3), (2,4)],
+    (2,0): [(1,0), (3,0)],
+    (2,1): [(3,1)],
+    (2,2): [(3,2)],
+    (2,3): [(1,3)],
+    (2,4): [(1,4), (3,4)],
+    (3,0): [(2,0), (3,1)],
+    (3,1): [(3,0), (3,2), (2,1)],
+    (3,2): [(3,1), (2,2), (4,2)],
+    (3,3): [(4,3)],
+    (3,4): [(2,4), (4,4)],
+    (4,0): [(4,1)],
+    (4,1): [(4,2)],
+    (4,2): [(3,2), (4,1), (4,3)],
+    (4,3): [(4,2), (4,4)],
+    (4,4): [(4,3), (3,4)],
+}
+
+def find_path(maze, current_tile, visited, path, goal):
+  visited.append(current_tile)
+  path.append(current_tile)
+
+  for adjacent_tile in maze[current_tile]:
+    if adjacent_tile == goal:
+      path.append(goal)
+      print("Goal found at: ", path)
+      return path, visited
+    else:
+      if adjacent_tile not in visited:
+        print("Moving to next tile: ", adjacent_tile)
+        path, visited = find_path(maze, adjacent_tile, visited, path, goal)
+        if len(path) != 0 and goal in path:
+          return path, visited
+  print("Dead-end, move back!")
+  path.pop()
+  return path, visited
+
+start = (0,0)
+goal = (2,1)
+
+visited = []
+path = []
+
+path, visited = find_path(maze, start, visited, path, goal)
+print("Path to goal:", path)
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+import random
+from random import choices
+import math
+
+cities = {
+    "a": {"b": 12, "c": 10, "g": 12},
+    "b": {"a": 12, "c": 8, "d": 12},
+    "c": {"a": 10, "b": 8, "d": 11, "e": 3, "g": 9},
+    "d": {"b": 12, "c": 11, "e": 11, "f": 10},
+    "e": {"c": 3, "d": 11, "f": 6, "g": 7},
+    "f": {"d": 10, "e": 6, "g": 9},
+    "g": {"a": 12, "c": 9, "e": 7, "f": 9}
+}
+
+# Fucntion to create random order of cities
+
+populationSize = 100
+numberOfGenerations = 1000
+
+def createOrder(cities):
+  currentCity = "a"
+  visitedCities = ["a"]
+
+  while True:
+    newNeighbors = False
+    for neighbor in cities[currentCity]:
+      if neighbor[0] not in visitedCities:
+        newNeighbors = True
+
+    if newNeighbors == False:
+      currentCity = "a"
+      visitedCities = ["a"]
+      continue
+
+    city, distance = random.choice(list(cities[currentCity].items()))
+    if city not in visitedCities:
+      currentCity = city
+      visitedCities.append(currentCity)
+
+    else:
+      continue
+
+    if len(visitedCities) == 7:
+      if currentCity in ["b", "c", "g"]:
+        visitedCities.append("a")
+        return visitedCities
+      else:
+        currentCity = "a"
+        visitedCities = ["a"]
+
+# Function to create population
+
+def createPopulation(cities, n):
+  population = []
+
+  for i in range(n):
+    population.append(createOrder(cities))
+  return population
+population = createPopulation(cities, populationSize)
+
+# Function to calculate fitness 
+def calculateDistance(cities, order):
+  currentCity = order[0]
+  distance = 0
+
+  for i in range(7):
+    distance += cities[order[i]][order[i+1]]
+  return distance
+
+totalDistance = 0
+distances = []
+for i in range(populationSize):
+  distancePowered = pow(calculateDistance(cities, population[i]), 30)
+  totalDistance += 1 / distancePowered
+  distances.append(1 / distancePowered)
+
+fitnesses = []
+for i in range(populationSize):
+  fitnesses.append(distances[i]/totalDistance)
+
+def chooseParents(population, fitnesses):
+  while True:
+    parent1 = random.choices(population, fitnesses)[0]
+    parent2 = random.choices(population, fitnesses)[0]
+    return parent1, parent2
+
+
+def mutate(cities, parent1, parent2):
+  splitPoint1 = random.randint(3,5)
+  splitPoint2 = random.randint(3,5)
+  child = parent1[0:splitPoint1]
+  child.extend(parent2[splitPoint1:])
+  if isValidChild(cities, child):
+    return [child]
+  return []
+
+def isValidChild(cities, child):
+  for i in range(len(child) - 1):
+    if child[i+1] not in cities[child[i]]:
+      return False
+  if len(child[1:-1]) != len(set(child[1:-1])):
+    return False
+  return True
+
+for i in range(numberOfGenerations):
+  sum = 0
+  children = []
+  while len(children) < populationSize:
+    parent1, parent2 = chooseParents(population, fitnesses)
+    child = mutate(cities, parent1, parent2)
+    children.extend(child)
+  lowest = math.inf
+  for child in children:
+    if calculateDistance(cities, child) < lowest:
+      lowest = calculateDistance(cities, child)
+  print("lowest this generation: ", lowest)
+  population = children
+
+-----------------------------------------------------------------------------------------------------------------------------------
+
+# Problem 3
+import random
+
+# Initialize the board
+board = [' ' for _ in range(9)]
+
+# Function to print
+def print_board(board):
+    print(f"{board[0]} | {board[1]} | {board[2]}")
+    print("-" * 9)
+    print(f"{board[3]} | {board[4]} | {board[5]}")
+    print("-" * 9)
+    print(f"{board[6]} | {board[7]} | {board[8]}")
+
+# board is full
+def is_full(board):
+    return ' ' not in board
+
+# Function to check
+def check_win(board, player):
+    win_combinations = [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)]
+    for a, b, c in win_combinations:
+        if board[a] == board[b] == board[c] == player:
+            return True
+    return False
+
+# Function for the computer's move
+def computer_move(board):
+    best_score = -float('inf')
+    best_move = None
+    for i in range(9):
+        if board[i] == ' ':
+            board[i] = 'O'  # Try the move
+            score = minimax(board, 0, False)
+            board[i] = ' '  # Undo the move
+            if score > best_score:
+                best_score = score
+                best_move = i
+    return best_move
+
+# Minimax algorithm
+def minimax(board, depth, is_maximizing):
+    scores = {'O': 1, 'X': -1, 'Tie': 0}
+    if check_win(board, 'O'):
+        return scores['O']
+    if check_win(board, 'X'):
+        return scores['X']
+    if is_full(board):
+        return scores['Tie']
+
+    if is_maximizing:
+        best_score = -float('inf')
+        for i in range(9):
+            if board[i] == ' ':
+                board[i] = 'O'
+                score = minimax(board, depth + 1, False)
+                board[i] = ' '
+                best_score = max(score, best_score)
+        return best_score
+    else:
+        best_score = float('inf')
+        for i in range(9):
+            if board[i] == ' ':
+                board[i] = 'X'
+                score = minimax(board, depth + 1, True)
+                board[i] = ' '
+                best_score = min(score, best_score)
+        return best_score
+
+# Main game loop
+while True:
+    print_board(board)
+
+    # Player's 
+    while True:
+        player_move = int(input("Enter your move (1-9): ")) - 1
+        if 0 <= player_move < 9 and board[player_move] == ' ':
+            board[player_move] = 'X'
+            break
+        else:
+            print("Invalid move. Try again.")
+
+    # Check 
+    if check_win(board, 'X'):
+        print_board(board)
+        print("Congratulations! You win!")
+        break
+    if is_full(board):
+        print_board(board)
+        print("It's a tie!")
+        break
+
+    # Computer's
+    computer_best_move = computer_move(board)
+    board[computer_best_move] = 'O'
+
+    # Check
+    if check_win(board, 'O'):
+        print_board(board)
+        print("Sorry, you lose. The computer wins!")
+        break
+    if is_full(board):
+        print_board(board)
+        print("It's a tie!")
+        break
