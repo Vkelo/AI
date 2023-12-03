@@ -1,0 +1,263 @@
+from transformers import AutoTokenizer, AutoModel
+
+# Download the pretrained BERT model from Hugging Face
+tokenizer = AutoTokenizer.from_pretrained("indolem/indobert-base-uncased")
+bert = AutoModel.from_pretrained("indolem/indobert-base-uncased", return_dict=False)
+
+# freeze all the parameters
+for param in bert.parameters():
+    param.requires_grad = False
+
+# Import the necessary libraries
+import glob
+import re
+import pickle
+import collections
+from tqdm import tqdm
+
+import pandas as pd
+import numpy as np
+import seaborn as sns
+
+from nltk.tokenize import word_tokenize
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import f1_score, recall_score, precision_score, roc_auc_score, confusion_matrix
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
+
+import torch
+import torch.nn as nn
+import transformers
+from transformers import BertModel, BertTokenizerFast
+
+%matplotlib inline
+
+import pandas as pd
+from google.colab import files
+uploaded = files.upload()
+
+
+data_path = "/content/world_coordinate_inter_normalized.csv"
+files = glob.glob(data_path)
+print("Files: ", files)
+print("--------------------------------")
+
+
+# # Convert data to DataFrame format
+# d_train = pd.DataFrame({'content': train[0], 'label': train[0]})
+# d_test = pd.DataFrame({'content': test[0], 'label': test[0]})
+
+df = pd.read_csv('/content/world_coordinate_inter_normalized.csv')
+
+# Print formatted data
+print(df2)
+
+#Load your coordinate data
+coordinates_df = pd.read_csv('/content/world_coordinate_inter_normalized.csv', header=None, names=['X', 'Y', 'Z'])
+
+#Load your labels data
+labels_df = pd.read_csv('your_labels_file.csv', header=None, names=['Label'])
+
+#Concatenate the coordinates and labels dataframes along columns
+labeled_data = pd.concat([coordinates_df, labels_df], axis=1)
+
+#Save the labeled data to a new CSV file
+labeled_data.to_csv('labeled_data.csv', index=False)
+
+# Assuming you have a binary classification problem with a target column 'label'
+df['label'] = ''  # Initialize a new column
+
+# Manually label the data (replace '0' and '1' with your labels)
+df.loc[df['some_condition'], 'label'] = 0
+df.loc[df['other_condition'], 'label'] = 1
+
+
+class BERT_Arch(nn.Module):
+
+    def __init__(self, bert):
+
+      super(BERT_Arch, self).__init__()
+
+      self.bert = bert
+
+      # dropout layer
+      self.dropout = nn.Dropout(0.1)
+
+      # relu activation function
+      self.relu =  nn.ReLU()
+
+      # dense layer 1
+      self.fc1 = nn.Linear(768,5)
+
+      # dense layer 2
+      # adjust the input and output numbers
+      # self.fc2 = nn.Linear(512,5)
+
+      #softmax activation function
+      self.softmax = nn.LogSoftmax(dim=1)
+
+    #define the forward pass
+    def forward(self, sent_id, mask):
+
+      # pass the inputs to the model
+      _, cls_hs = self.bert(sent_id, attention_mask=mask)
+
+      x = self.dropout(cls_hs)
+
+      x = self.fc1(x)
+
+      x = self.relu(x)
+
+      # uncomment if you need more layers
+      # x = self.fc2(x)
+
+      # apply softmax activation
+      x = self.softmax(x)
+
+      return x
+
+# define device and check if there is CUDA-device
+is_cuda = torch.cuda.is_available()
+
+if is_cuda:
+    device = torch.device("cuda")
+    print("GPU is available")
+else:
+    device = torch.device("cpu")
+    print("GPU not available, CPU used")
+
+# pass the pre-trained BERT to our define architecture
+model = BERT_Arch(bert)
+
+# push the model to device (GPU/CPU)
+model = model.to(device)
+
+# define the optimizer
+optimizer = torch.optim.AdamW(model.parameters(), lr = 1e-5)
+
+from sklearn.utils.class_weight import compute_class_weight
+
+# compute the class weights
+class_wts = compute_class_weight('balanced', classes=np.unique(train_labels), y=train_labels)
+print(class_wts)
+
+# convert class weights to tensor
+weights= torch.tensor(class_wts,dtype=torch.float)
+weights = weights.to(device)
+
+# loss function
+cross_entropy  = nn.NLLLoss(weight=weights)
+
+# function to train the model
+def train():
+
+  model.train()
+
+  total_loss, total_accuracy = 0, 0
+
+  # empty list to save model predictions
+  total_preds=[]
+
+  # iterate over batches
+  for step, batch in enumerate(train_dataloader):
+
+    # progress update after every 50 batches.
+    if step % 50 == 0 and not step == 0:
+      print('  Batch {:>5,}  of  {:>5,}.'.format(step, len(train_dataloader)))
+
+    # push the batch to gpu
+    batch = [r.to(device) for r in batch]
+
+    sent_id, mask, labels = batch
+
+    # clear previously calculated gradients
+    model.zero_grad()
+
+    # get model predictions for the current batch
+    preds = model(sent_id, mask)
+
+    # compute the loss between actual and predicted values
+    loss = cross_entropy(preds, labels)
+
+    # add on to the total loss
+    total_loss = total_loss + loss.item()
+
+    # backward pass to calculate the gradients
+    loss.backward()
+
+    # clip the the gradients to 1.0. It helps in preventing the exploding gradient problem
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
+    # update parameters
+    optimizer.step()
+
+    # model predictions are stored on GPU. So, push it to CPU
+    preds=preds.detach().cpu().numpy()
+
+    # append the model predictions
+    total_preds.append(preds)
+
+  # compute the training loss of the epoch
+  avg_loss = total_loss / len(train_dataloader)
+
+  # predictions are in the form of (no. of batches, size of batch, no. of classes).
+  # reshape the predictions in form of (number of samples, no. of classes)
+  total_preds  = np.concatenate(total_preds, axis=0)
+
+  #returns the loss and predictions
+  return avg_loss, total_preds
+
+# function for evaluating the model
+def evaluate(dataloader):
+
+  print("\nEvaluating...")
+
+  # deactivate dropout layers
+  model.eval()
+
+  total_loss, total_accuracy = 0, 0
+
+  # empty list to save the model predictions
+  total_preds = []
+
+  # iterate over batches
+  for step,batch in enumerate(dataloader):
+
+    # Progress update every 50 batches.
+    if step % 50 == 0 and not step == 0:
+
+      # Calculate elapsed time in minutes.
+      # elapsed = format_time(time.time() - t0)
+
+      # Report progress.
+      print('  Batch {:>5,}  of  {:>5,}.'.format(step, len(dataloader)))
+
+    # push the batch to gpu
+    batch = [t.to(device) for t in batch]
+
+    sent_id, mask, labels = batch
+
+    # deactivate autograd
+    with torch.no_grad():
+
+      # model predictions
+      preds = model(sent_id, mask)
+
+      # compute the validation loss between actual and predicted values
+      loss = cross_entropy(preds,labels)
+
+      total_loss = total_loss + loss.item()
+
+      preds = preds.detach().cpu().numpy()
+
+      total_preds.append(preds)
+
+  # compute the validation loss of the epoch
+  avg_loss = total_loss / len(dataloader)
+
+  # reshape the predictions in form of (number of samples, no. of classes)
+  total_preds  = np.concatenate(total_preds, axis=0)
+
+  return avg_loss, total_preds
